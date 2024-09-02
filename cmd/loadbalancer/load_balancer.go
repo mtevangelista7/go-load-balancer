@@ -1,6 +1,7 @@
 package loadbalancer
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -14,28 +15,22 @@ type LoadBalancerServer struct {
 	Count         int
 }
 
-// StartMainServerAndListen inicia o servidor http e começa a escutar requisições
 func (loadbalancer *LoadBalancerServer) StartMainServerAndListen() {
 
-	if err := http.ListenAndServe(loadbalancer.Address, nil); err != nil {
-		log.Fatalf("Erro ao iniciar o servidor HTTP: %s", err)
-	}
-
-	loadbalancer.Count = -1
-
-	http.HandleFunc(loadbalancer.Address, func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// ao entrar aqui já temos uma requisição
 		targetServer := loadbalancer.roundRobin()
 
+		fmt.Println(targetServer)
+
 		if targetServer == "" {
-			http.Error(w, "", http.StatusNotFound)
+			http.Error(w, "Servidor não encontrado", http.StatusNotFound)
 			return
 		}
 
 		destinationURL, err := url.Parse(targetServer)
-
 		if err != nil {
-			http.Error(w, "", http.StatusInternalServerError)
+			http.Error(w, "Erro interno do servidor", http.StatusInternalServerError)
 			return
 		}
 
@@ -48,6 +43,14 @@ func (loadbalancer *LoadBalancerServer) StartMainServerAndListen() {
 		// Encaminha a requisição para o servidor de destino
 		proxy.ServeHTTP(w, r)
 	})
+
+	// Inicie o servidor após definir o handler
+	if err := http.ListenAndServe(loadbalancer.Address, nil); err != nil {
+		log.Fatalf("Erro ao iniciar o servidor HTTP: %s", err)
+	}
+
+	// isso aqui parece estar no lugar errado
+	loadbalancer.Count = -1
 }
 
 // roundRobin devolve em qual servidor a proxima requisição deve ser encaminhada
